@@ -1,0 +1,21 @@
+{
+  "name": "Gas LPG — Manajemen Pangkalan",
+  "short_name": "Gas LPG",
+  "description": "Aplikasi manajemen distribusi Gas LPG 3 Kg",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1D9E75",
+  "theme_color": "#1D9E75",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icon-192.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "id",
+  "dir": "ltr"
+}

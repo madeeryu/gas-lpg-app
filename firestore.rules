@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: user sudah login
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Helper: role dari dokumen users/
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isOwner() {
+      return isAuth() && getRole() == 'owner';
+    }
+
+    function isEmployee() {
+      return isAuth() && getRole() == 'employee';
+    }
+
+    // ── USERS ────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isAuth() && (request.auth.uid == userId || isOwner());
+      allow write:  if isOwner();
+      allow create: if isAuth() && request.auth.uid == userId;
+    }
+
+    // ── SETTINGS ─────────────────────────────────────────────
+    // Owner: full access
+    // Employee: hanya boleh update total_tabung (saat jual tabung fisik)
+    match /settings/{doc} {
+      allow read:   if isAuth();
+      allow write:  if isOwner();
+      allow update: if isEmployee() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['total_tabung']);
+    }
+
+    // ── PELANGGAN ─────────────────────────────────────────────
+    match /pelanggan/{pelId} {
+      allow read:                  if isAuth();
+      allow create, delete:        if isOwner();
+      allow update:                if isOwner();
+      // Employee hanya boleh update last_order
+      allow update:                if isEmployee() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['last_order']);
+    }
+
+    // ── TRANSAKSI ─────────────────────────────────────────────
+    match /transaksi/{trxId} {
+      allow read:           if isAuth();
+      allow create:         if isAuth() &&
+        request.resource.data.karyawan_id == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+
+    // ── STOK HARIAN ───────────────────────────────────────────
+    // Owner: full access
+    // Employee: boleh write untuk autoUpdateStok & jual tabung fisik
+    match /stok_harian/{date} {
+      allow read:  if isAuth();
+      allow write: if isAuth();
+    }
+
+    // ── PENGELUARAN ───────────────────────────────────────────
+    match /pengeluaran/{doc} {
+      allow read:  if isAuth();
+      allow write: if isOwner();
+    }
+
+    // ── PIUTANG ───────────────────────────────────────────────
+    match /piutang/{doc} {
+      allow read:           if isAuth();
+      allow create:         if isAuth();
+      allow update, delete: if isAuth();
+
+      // Subcollection riwayat pembayaran (catat bayar / cicilan)
+      match /pembayaran/{bayarId} {
+        allow read:           if isAuth();
+        allow create:         if isAuth();
+        allow update, delete: if isOwner();
+      }
+    }
+
+    // ── PELUNASAN ─────────────────────────────────────────────
+    match /pelunasan/{doc} {
+      allow read:   if isAuth();
+      allow create: if isAuth();
+      allow update, delete: if isOwner();
+    }
+
+    // ── PENJUALAN TABUNG FISIK ────────────────────────────────
+    // Employee bisa create transaksi jual tabung, owner full access
+    match /penjualan_tabung/{doc} {
+      allow read:           if isAuth();
+      allow create:         if isAuth() &&
+        request.resource.data.karyawan_id == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
+
+    // ── SURVEI ───────────────────────────────────────────────
+    // Employee bisa create laporan survei milik sendiri
+    // Owner bisa baca & hapus semua
+    match /survei/{doc} {
+      allow read:   if isAuth();
+      allow create: if isAuth() &&
+        request.resource.data.karyawan_id == request.auth.uid;
+      allow delete: if isOwner() ||
+        (isAuth() && resource.data.karyawan_id == request.auth.uid);
+      allow update: if isOwner();
+    }
+
+    // ── LOKASI KARYAWAN ───────────────────────────────────────
+    match /lokasi_karyawan/{uid} {
+      allow read:  if isOwner() || (isAuth() && request.auth.uid == uid);
+      allow write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ── JADWAL PENGIRIMAN ─────────────────────────────────────
+    match /jadwal_pengiriman/{doc} {
+      allow read:  if isAuth();
+      allow write: if isOwner();
+    }
+
+  }
+}
